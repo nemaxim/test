@@ -1,0 +1,40 @@
+{#%- import "macros.jinja" as lib with context -%#}
+{# generate kafka servers #}
+{%- macro kafka_url() -%}
+{%- set kafka_servers = [] -%}
+{%- for server in smev3_kafka.main -%}
+{%- set hostport = server.hostname + ":" + server.port | string -%}
+{%- do kafka_servers.append(hostport) -%}
+{%- endfor -%}
+{{ kafka_servers | join(',') }}
+{%- endmacro -%}
+
+bootstrap.servers={{ kafka_url() }}
+
+# specify the compression codec for all data generated: none, gzip, snappy, lz4
+compression.type=lz4
+
+{% if kuber is defined and kuber == true %}
+client.id=connector-get-status-{{ env }}-0-client-id
+transactional.id=connector-get-status-{{ env }}-0-transactional-id
+{% else %}
+client.id=connector-get-status-{{ env }}-{{ groups[group_names[0]].index(inventory_hostname)+1 }}-client-id
+transactional.id=connector-get-status-{{ env }}-{{ groups[group_names[0]].index(inventory_hostname)+1 }}-transactional-id
+{% endif %}
+
+enable.idempotence=true
+max.in.flight.requests.per.connection=1
+acks=all
+retries=3
+linger.ms=0
+batch.size=1
+buffer.memory=40240
+key.serializer=org.apache.kafka.common.serialization.StringSerializer
+value.serializer=ru.rtlabs.smev3.kafka.connector.common.serialization.SmevMetaDataSerializer
+success.topic=preprocessing
+log.topic=log_meta
+status.topic=log_status
+exception.topic=log_exception
+sc.topic={{ smev3_topic.sc }}
+bundle.size={{ smev3_topic.bundle.size }}
+bundle.fixed.rate.timeout={{ smev3_topic.bundle.fixed_rate_timeout }}
